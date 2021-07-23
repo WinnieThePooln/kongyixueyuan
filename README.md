@@ -1,38 +1,90 @@
-# 测试：葛潇然
-# 从零到壹构建基于 Fabric-SDK-Go 的Web应用
+[TOC]
 
-## 引言
+# 1. 需求分析与架构设计
 
-### a. 说明
+## 1.1 需求分析
 
-我们不会在本教程中详细解释 Hyperledger Fabric 的工作原理。在学习本教程之前，您应该通过Hyperledger Fabric [官网](https://hyperledger-fabric.readthedocs.io/en/release-1.2/whatis.html) 或其它渠道学习 Hyperledger Fabric 的一些知识，以具备 Hyperledger  Fabric 操作基础。
+现在是一个信息化的高科技时代，许许多多的企业必须紧跟时代步伐，不断创新，才能发展壮大；而企业的发展必然离不开人才队伍的建设，也可以说创新是企业发展的动力，而人才却是企业发展的根本，所以现在各企业对于人才队伍建设十分看重，而对于人才的素质及受教育情况的要求更是重中之重。
 
-本应用实现是在基于 **Ubuntu 16.04（推荐） ** 上完成的，但 Hyperledger Fabric 与Mac OS X、Windows和其他Linux发行版相兼容。
+对学历信息的查询，要么成本较高，要么比较麻烦，甚至还有一些假冒网站让人防不胜防；传统应用是将数据保存在数据库中来实现，但是现在出现的数据库由于故障或者被删、被黑造成的数据丢失的情况更是屡见不鲜，所以传统数据库并不能真正意义上确保数据的完整性及安全性。
 
-Hyperledger Fabric简介
+基于这些情况，我们设计并开发了一个 `基于区块链技术的实现的学历信息征信系统`，实现了在线对学历信息的查询功能，由于区块链技术本身的特点，无须考虑数据被破坏的问题，而且杜绝了对于信息造假的情况，保证了学历信息的真实性。由于篇幅原因，我们对学历信息征信系统的应用场景进行修改及简化，实现的业务逻辑包括添加信息、修改信息、查询信息、查询详情信息等操作，实际情况下的的业务逻辑需要根据实际需求场景做出相应的调整。
 
-> Hyperledger Fabric是一个区块链框架实现，是分布式账本解决方案的平台，采用模块化架构，提供高度机密性，弹性，灵活性和可扩展性。它旨在支持不同组件的可插拔实现，以适应整个经济生态系统中存在的复杂性。
+由于系统需要保证人才受教育情况真实性，所以对于系统的用户而言，不可能由用户自己添加相应的学历信息，而是由具有一定权限的用户来完成添加或修改的功能。但普通用户可以通过系统溯源功能来确定信息的真伪。所以我们将系统用户的使用角色分为两种：
 
-详细请参阅官方文档中的完整说明中的介绍部分：[Hyperledger Fabric Blockchain](https://hyperledger-fabric.readthedocs.io/en/latest/blockchain.html)
+1. 普通用户
+2. 管理员用户
 
-### b. 所需环境及工具
+普通用户具有对数据的查询功能 ，但实现查询之前必须经过登录认证：
 
-- **Ubuntu 16.04**
-- **vim、git**
-- **docker 17.03.0-ce+**
-- **docker-compose 1.8**+
-- **Golang 1.10.x+**
+- 用户登录：系统只针对合法用户进行授权使用，所以用户必须先进行登录才能完成相应的功能。
+- 查询实现：查询分为两种方式实现
+  - 根据证书编号与姓名查询：根据用户输入的证书编号与姓名进行查询。
+  - 根据身份证号码查询：根据用户输入指定的身份证号码进行查询，此功能可以实现溯源。
 
-## 1. 先决条件
+管理员用户除具有普通用户的功能之外，额外添加了两个功能：
 
-### 1.1. 安装 vim、git
+- 添加信息：可以向系统中添加新的学历信息。
+- 修改信息：针对已存在的学历信息进行修改。
+
+## 1.2 架构设计
+
+我们在 [从零到壹构建基于 Fabric-SDK-Go 的Web项目实战](https://github.com/kevin-hf/kongyixueyuan) 中已经完成了一个完整的基于 `fabric-sdk-go` 的应用示例，所以我们现在使用之前的应用架构，不同的是在此应用中需要编写实现完整的链码并通过业务层调用链码中的各个函数，以实现对数据状态的操作。界面为了方便用户操作使用，仍然使用Web浏览器的方式实现。而且在此应用中我们将 `Hyperledger Fabric` 默认的状态数据库由 `LevelDB` 替换为 `CouchDB` 来实现
+
+
+
+![架构](./img/projectArch.png)
+
+对于 `Fabric Network`结构如下图所示：
+
+![networkArch](./img/networkArch.png)
+
+## 1.3 数据模型设计
+
+由于需要向分类账本中保存数据，所以必须设计相关的结构体用于声明要保存的数据结构，用于方便的在应用中处理数据。
+
+`Education` 结构体设计如下表所示：
+
+| 名称           | 数据类型      | 说明                             |
+| -------------- | ------------- | -------------------------------- |
+| ObjectType     | string        |                                  |
+| Name           | string        | 姓名                             |
+| Gender         | string        | 性别                             |
+| Nation         | string        | 民族                             |
+| EntityID       | string        | 身份证号（记录的Key）            |
+| Place          | string        | 籍贯                             |
+| BirthDay       | string        | 出生日期                         |
+| Photo          | string        | 照片                             |
+| EnrollDate     | string        | 入学日期                         |
+| GraduationDate | string        | 毕（结）业日期                   |
+| SchoolName     | string        | 所读学校名称                     |
+| Major          | string        | 所读专业                         |
+| QuaType        | string        | 学历类别（普通、成考等）         |
+| Length         | string        | 学制（两年、三年、四年、五年）   |
+| Mode           | string        | 学习形式（普通全日制）           |
+| Level          | string        | 层次（专科、本科、研究生、博士） |
+| Graduation     | string        | 毕（结）业（毕业、结业）         |
+| CertNo         | string        | 证书编号                         |
+| Historys       | []HistoryItem | 当前edu的详细历史记录            |
+
+为了能够从当前的分类状态中查询出详细的历史操作记录，我们在 `Education` 中设计了一个类型为`HistoryItem` 数组的 `Historys` 成员，表示当前状态的历史记录集。
+
+`HistoryItem` 结构体设计如下表所示：
+
+| 名称      | 数据类型  | 说明                   |
+| --------- | --------- | ---------------------- |
+| TxId      | string    | 交易编号               |
+| Education | Education | 本次历史记录的详细信息 |
+
+### 安装 vim、curl、git
 
 ```shell
 $ sudo apt install vim
 $ sudo apt install git
+$ sudo apt install curl
 ```
 
-### 1.2. 安装docker
+### 安装docker
 
 **需要Docker版本17.03.0-ce或更高版本。**
 
@@ -47,9 +99,7 @@ $ sudo apt install docker.io
 $ sudo docker version
 ```
 
-![docker版本](./img/docker_1.png)
-
-### 1.3. 安装docker-compose
+### 安装docker-compose
 
 **docker-compose 1.8或更高版本是必需的。**
 
@@ -66,19 +116,30 @@ $ sudo apt install docker-compose
 $ docker-compose version 
 ```
 
-![docker-compose版本](./img/docker_2.png)
 
-将当前用户添加到 docker 组
 
-```shell
-$ sudo usermod -aG docker kevin
-```
+# 添加docker用户组，一般已存在，不需要执行
 
-添加成功后**必须注销/退出并重新登录**(退出终端重新连接即可)
+sudo groupadd docker
 
-> 如果没有将当前用户添加到 docker 组中，在后期执行make命令时会造成错误: `ERROR: Couldn't connect to Docker daemon at http+docker://localunixsocket - is it running?`
+# 将登陆用户加入到docker用户组中
 
-### 1.4. 安装Golang
+sudo gpasswd -a $USER docker
+
+# 更新用户组
+
+newgrp docker
+
+# 测试docker命令是否可以使用sudo正常使用
+
+docker version
+————————————————
+版权声明：本文为CSDN博主「_小鱼塘」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/wuyundong123/article/details/115479057
+
+
+
+### 安装Golang
 
 **需要版本1.10.x或更高。**如果您使用的是 Hyperledger Fabric 1.1.x 版本，那么 Golang 版本在 1.9.x 以上
 
@@ -86,8 +147,6 @@ $ sudo usermod -aG docker kevin
  $ go version 
  $ wget https://dl.google.com/go/go1.10.3.linux-amd64.tar.gz
 ```
-
-> 下载受网络环境影响，如果您本地有相应的 tar 包，则直接解压到指定的路径下即可。
 
 使用 tar 命令将下载后的压缩包文件解压到指定的 /usr/local/ 路径下
 
@@ -101,7 +160,7 @@ $ sudo tar -zxvf go1.10.3.linux-amd64.tar.gz -C /usr/local/
 $ sudo vim /etc/profile
 ```
 
-> 如果只想让当前登录用户使用Golang， 其它用户不能使用， 则编辑当前用户$HOME目录下的   .bashrc 或  .profile 文件， 在该文件中添加相应的环境变量即可。
+> 如果只想让当前登录用户使用Golang， 其它用户不能使用， 则编辑当前用户$HOME目录下的 .bashrc 或 .profile 文件， 在该文件中添加相应的环境变量即可。
 
 在profile文件最后添加如下内容:
 
@@ -123,28 +182,24 @@ $ source /etc/profile
 $ go version
 ```
 
-![Go版本](./img/go_version.png)
+## 1.4 网络环境
 
-## 2. 网络环境
+### 1.4.1 设置环境
 
-### 2.1. 网络环境准备
-
-Hyperledger Fabric 处理交易时需要大量的证书来确保在整个端到端流程（TSL，身份验证，签名块......）期间进行加密。 为了直接了解问题的核心，我们已经在 github 上为您的网络环境准备了所有相关的内容， 不在此教程中讲解。
-
-- Crypto 材料已使用 Hyperledger Fabric 中的 **cryptogen** 工具生成，并保存在 hf-fixtures/crypto-config 目录中。有关 **cryptogen** 工具的更多详细信息，请 [点击此处](https://hyperledger-fabric.readthedocs.io/en/latest/commands/cryptogen.html)。
-- 初始区块（genesis.block）和通道配置事务（channel.tx）已使用 Hyperledger Fabric中 的 **configtxgen** 工具生成，并保存在 hf-fixtures/artifacts 目录中。有关 **configtxgen** 工具的更多详细信息，请 [点击此处](https://hyperledger-fabric.readthedocs.io/en/latest/commands/configtxgen.html)。
+我们在 [从零到壹构建基于 Fabric-SDK-Go 的Web项目实战](https://github.com/kevin-hf/kongyixueyuan) （如果没有看过《从零到壹构建基于 Fabric-SDK-Go 的Web项目实战》，建议先将其学习实现，然后再学习此案例）说明了如何构建fabric网络环境，现在我们要重新完成一个新的应用，所以网络环境可以使用之前的内容，但是因为**状态数据库使用 `CouchDB` 来实现**，所以需要做出部分修改，新增与 `CouchDB` 相关的内容。为了方便起见，我们重新搭建一个应用所需的网络环境。
 
 在`GOPATH`的`src`文件夹中新建一个目录如下：
 
 ```shell
-$ mkdir -p $GOPATH/src/github.com/kongyixueyuan.com/kongyixueyuan 
-$ cd $GOPATH/src/github.com/kongyixueyuan.com/kongyixueyuan
+$ mkdir -p $GOPATH/src/github.com/kongyixueyuan.com/education 
+$ cd $GOPATH/src/github.com/kongyixueyuan.com/education
 ```
 
 使用 `git` 命令克隆 hf-fixtures 目录当前路径
 
 ```shell
 $ git clone https://github.com/kevin-hf/hf-fixtures.git
+$ git clone git://github.com/kevin-hf/hf-fixtures.git
 ```
 
 将 hf-fixtures 文件夹重命名为 fixtures
@@ -170,13 +225,13 @@ $ cd fixtures
 为了构建区块链网络，使用 `docker` 构建处理不同角色的虚拟计算机。 在这里我们将尽可能保持简单。如果确定您的系统中已经存在相关的所需容器，或可以使用其它方式获取，则无需执行如下命令。否则请将 `fixtures` 目录下的 `pull_images.sh` 文件添加可执行权限后直接执行。
 
 ```shell
-$ chmod 777 ./pull_images.sh
+$ chmod 777 ./pull_images.sh 
 $ ./pull_images.sh 
 ```
 
 > 提示：`pull_images.sh` 文件是下载 Fabric 环境所需容器的一个可执行脚本，下载过程需要一段时间（视网速情况而定），请耐心等待。另：请确定您的系统支持虚拟技术。
 
-### 2.2. 配置docker-compose.yml文件
+### 1.4.2 配置docker-compose.yml文件
 
 在 `fixtures`  目录下创建一个 `docker-compose.yml`  文件并编辑
 
@@ -253,7 +308,24 @@ $ vim docker-compose.yml
              - ca.org1.kevin.kongyixueyuan.com
    ```
 
-4. 编辑Peer部分
+4. 声明 CouchDB 部分：
+
+   ```yaml
+     couchdb:
+       container_name: couchdb
+       image: hyperledger/fabric-couchdb
+       # Populate the COUCHDB_USER and COUCHDB_PASSWORD to set an admin user and password
+       # for CouchDB.  This will prevent CouchDB from operating in an "Admin Party" mode.
+       environment:
+         - COUCHDB_USER=
+         - COUCHDB_PASSWORD=
+       # Comment/Uncomment the port mapping if you want to hide/expose the CouchDB service,
+       # for example map it to utilize Fauxton User Interface in dev environments.
+       ports:
+         - "5984:5984"
+   ```
+
+5. 编辑Peer部分
 
    1. `peer0.org1.example.com`  内容如下
 
@@ -281,6 +353,10 @@ $ vim docker-compose.yml
             - CORE_PEER_LOCALMSPID=org1.kevin.kongyixueyuan.com
             - CORE_PEER_MSPCONFIGPATH=/var/hyperledger/msp
             - CORE_PEER_TLS_SERVERHOSTOVERRIDE=peer0.org1.kevin.kongyixueyuan.com
+            - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+            - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb:5984
+            - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=
+            - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=
           working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
           command: peer node start
           volumes:
@@ -292,6 +368,7 @@ $ vim docker-compose.yml
             - 7053:7053
           depends_on:
             - orderer.kevin.kongyixueyuan.com
+            - couchdb
           networks:
             default:
               aliases:
@@ -324,6 +401,10 @@ $ vim docker-compose.yml
             - CORE_PEER_LOCALMSPID=org1.kevin.kongyixueyuan.com
             - CORE_PEER_MSPCONFIGPATH=/var/hyperledger/msp
             - CORE_PEER_TLS_SERVERHOSTOVERRIDE=peer1.org1.kevin.kongyixueyuan.com
+            - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+            - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb:5984
+            - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=
+            - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=
           working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
           command: peer node start
           volumes:
@@ -335,38 +416,37 @@ $ vim docker-compose.yml
             - 7153:7053
           depends_on:
             - orderer.kevin.kongyixueyuan.com
+            - couchdb
           networks:
             default:
               aliases:
                 - peer1.org1.kevin.kongyixueyuan.com
       ```
 
-5. 其余可根据实际情况进行添加
-
-
-
-### 2.3. 测试网络环境
+## 1.5 测试网络环境
 
 为了检查网络是否正常工作，使用`docker-compose`同时启动或停止所有容器。 进入`fixtures`文件夹，运行：
 
 ```shell
-$ cd $GOPATH/src/github.com/kongyixueyuan.com/kongyixueyuan/fixtures
-$ docker-compose up
+上面的配置程序每一个头，都控制三个空格。
+$ cd $GOPATH/src/github.com/kongyixueyuan.com/education/fixtures
+$ sudo docker-compose up
 ```
 
-如果在您的系统中没有相关的容器，那么会自动下载docker镜像。下载完毕后自动启动，控制台会输出很多不同颜色的日志（红色不等于错误）
+控制台会输出很多不同颜色的日志（红色不等于错误）
 
-![启动网络](./img/11.1_1.png)
+![启动网络](./img/dockercompose_up.png)
 
 打开一个新终端并运行：
 
 ```shell
  $ docker ps 
+ $ docker ps -a
 ```
 
-![查看容器](./img/11.1_2.png)
+![查看容器](./img/docker_ps.png)
 
-将看到：两个peer，一个orderer和一个CA容器。 代表已成功创建了一个新的网络，可以随SDK一起使用。 要停止网络，请返回到上一个终端，按`Ctrl+C`并等待所有容器都停止。 
+将看到：两个peer，一个orderer和一个CA容器，还有一个 CouchDB 容器。 代表已成功创建了一个新的网络，可以随SDK一起使用。 要停止网络，请返回到上一个终端，按`Ctrl+C`并等待所有容器都停止。 
 
 > **提示** ：当网络成功启动后，所有处于活动中的容器都可以访问。 也可以查看指定容器的详细日志内容。  如果想删除这些容器，需要使用`docker rm $(docker ps -aq)`将其删除 ，但在删除容器之前需要确定其在网络环境中已不再使用。
 >
@@ -375,36 +455,36 @@ $ docker-compose up
 最后在终端2中执行如下命令关闭网络：
 
 ```shell
-$ cd $GOPATH/src/github.com/kongyixueyuan.com/kongyixueyuan/fixtures
-$ docker-compose down
+$ cd $GOPATH/src/github.com/kongyixueyuan.com/education/fixtures
+$ sudo docker-compose down
 ```
 
-![关闭网络](./img/11.1_3.png)
+![关闭网络](./img/dockercompose_down.png)
 
 
 
 终端1窗口中输出如下：
 
-![关闭网络过程](./img/11.1_4.png)
+![关闭网络过程](./img/dockercompose_down2.png)
 
 
 
-Hyperledger Fabric 提供了许多 SDK 来支持各种不同的编程语言，但是因为 Hyperledger Fabric 是使用 Golang 构建的，所以我们将使用 Go 语言来设计我们的应用程序，包括链码（智能合约）。如果您想使用其它 SDK，如 Fabric-SDK-Java，Fabric-SDK-Node等等，这些都可以通过在线文档进行学习，我们不在这里讨论。
+/src/github.com
 
-## 3. 配置Fabric-SDK
+# 2 SDK与链码实现
 
-### 3.1. 创建config.yaml
+## 2.1 创建 config.yaml 文件
 
 确认 Hyperledger Fabric 基础网络环境运行没有问题后，现在我们通过创建一个新的 config.yaml 配置文件给应用程序所使用的 Fabric-SDK-Go 配置相关参数及 Fabric 组件的通信地址
 
 进入项目的根目录中创建一个 `config.yaml` 文件并编辑
 
 ```shell
-$ cd $GOPATH/src/github.com/kongyixueyuan.com/kongyixueyuan
+$ cd $GOPATH/src/github.com/kongyixueyuan.com/education
 $ vim config.yaml
 ```
 
-config.yaml 文件完整内容如下:
+config.yaml 配置文件完整内容如下:
 
 ```yaml
 name: "kongyixueyuan-network"
@@ -467,7 +547,7 @@ client:
 
   # Root of the MSP directories with keys and certs.
   cryptoconfig:
-    path: ${GOPATH}/src/github.com/kongyixueyuan.com/kongyixueyuan/fixtures/crypto-config
+    path: ${GOPATH}/src/github.com/kongyixueyuan.com/education/fixtures/crypto-config
 
   # Some SDKs support pluggable KV stores, the properties under "credentialStore"
   # are implementation specific
@@ -659,7 +739,7 @@ orderers:
 
     tlsCACerts:
       # Certificate location absolute path
-      path: ${GOPATH}/src/github.com/kongyixueyuan.com/kongyixueyuan/fixtures/crypto-config/ordererOrganizations/kevin.kongyixueyuan.com/tlsca/tlsca.kevin.kongyixueyuan.com-cert.pem
+      path: ${GOPATH}/src/github.com/kongyixueyuan.com/education/fixtures/crypto-config/ordererOrganizations/kevin.kongyixueyuan.com/tlsca/tlsca.kevin.kongyixueyuan.com-cert.pem
 
 #
 # List of peers to send various requests to, including endorsement, query
@@ -686,7 +766,7 @@ peers:
 
     tlsCACerts:
       # Certificate location absolute path
-      path: ${GOPATH}/src/github.com/kongyixueyuan.com/kongyixueyuan/fixtures/crypto-config/peerOrganizations/org1.kevin.kongyixueyuan.com/tlsca/tlsca.org1.kevin.kongyixueyuan.com-cert.pem
+      path: ${GOPATH}/src/github.com/kongyixueyuan.com/education/fixtures/crypto-config/peerOrganizations/org1.kevin.kongyixueyuan.com/tlsca/tlsca.org1.kevin.kongyixueyuan.com-cert.pem
 
   peer1.org1.kevin.kongyixueyuan.com:
     # this URL is used to send endorsement and query requests
@@ -708,7 +788,7 @@ peers:
 
     tlsCACerts:
       # Certificate location absolute path
-      path: ${GOPATH}/src/github.com/kongyixueyuan.com/kongyixueyuan/fixtures/crypto-config/peerOrganizations/org1.kevin.kongyixueyuan.com/tlsca/tlsca.org1.kevin.kongyixueyuan.com-cert.pem
+      path: ${GOPATH}/src/github.com/kongyixueyuan.com/education/fixtures/crypto-config/peerOrganizations/org1.kevin.kongyixueyuan.com/tlsca/tlsca.org1.kevin.kongyixueyuan.com-cert.pem
 
 #
 # Fabric-CA is a special kind of Certificate Authority provided by Hyperledger Fabric which allows
@@ -720,7 +800,7 @@ certificateAuthorities:
     url: http://localhost:7054
     tlsCACerts:
       # Certificate location absolute path
-      path: ${GOPATH}/src/github.com/kongyixueyuan.com/kongyixueyuan/fixtures/crypto-config/peerOrganizations/org1.kevin.kongyixueyuan.com/ca/ca.org1.kevin.kongyixueyuan.com-cert.pem
+      path: ${GOPATH}/src/github.com/kongyixueyuan.com/education/fixtures/crypto-config/peerOrganizations/org1.kevin.kongyixueyuan.com/ca/ca.org1.kevin.kongyixueyuan.com-cert.pem
 
     # Fabric-CA supports dynamic user enrollment via REST APIs. A "root" user, a.k.a registrar, is
     # needed to enroll and invoke new users.
@@ -756,47 +836,432 @@ entityMatchers:
       mappedHost: ca.org1.kevin.kongyixueyuan.com
 ```
 
-### 3.2. 定义所需结构体
 
-配置文件完成指定的配置信息之后，我们开始编写代码。
 
-在项目的根目录下添加一个名为 `sdkInit` 的新目录，我们将在这个文件夹中创建 SDK，并根据配置信息创建应用通道
+## 2.2 声明结构体
 
-```shell
-$ mkdir sdkInit
-```
-
-为了方便管理 Hyperledger Fabric 网络环境，我们将在 `sdkInit` 目录中创建一个 `fabricInitInfo.go`  的源代码文件，用于定义一个结构体，包括 Fabric SDK 所需的各项相关信息
+在当前项目根目录中创建一个存放链码文件的 `chaincode` 目录，然后在该目录下创建一个 `eduStruct.go` 的文件并对其进行编辑
 
 ```shell
-$ vim sdkInit/fabricInitInfo.go 
+$ mkdir chaincode
+$ vim chaincode/eduStruct.go
 ```
 
-`fabricInitInfo.go ` 源代码如下：
+`eduStruct.go` 文件主要声明一个结构体，用于将多个数据包装成为一个对象，然后进行进一步的处理。该文件完整代码如下：
 
 ```go
-package sdkInit
 
-import (
-	"github.com/hyperledger/fabric-sdk-go/pkg/client/resmgmt"
-)
+package main
 
-type InitInfo struct {
-	ChannelID     string
-	ChannelConfig string
-	OrgAdmin      string
-	OrgName       string
-	OrdererOrgName	string
-	OrgResMgmt *resmgmt.Client
+type Education struct {
+	ObjectType	string	`json:"docType"`
+	Name	string	`json:"Name"`		// 姓名
+	Gender	string	`json:"Gender"`		// 性别
+	Nation	string	`json:"Nation"`		// 民族
+	EntityID	string	`json:"EntityID"`		// 身份证号
+	Place	string	`json:"Place"`		// 籍贯
+	BirthDay	string	`json:"BirthDay"`		// 出生日期
+
+	EnrollDate	string	`json:"EnrollDate"`		// 入学日期
+	GraduationDate	string	`json:"GraduationDate"`	// 毕（结）业日期
+	SchoolName	string	`json:"SchoolName"`	// 学校名称
+	Major	string	`json:"Major"`	// 专业
+	QuaType	string	`json:"QuaType"`	// 学历类别
+	Length	string	`json:"Length"`	// 学制
+	Mode	string	`json:"Mode"`	// 学习形式
+	Level	string	`json:"Level"`	// 层次
+	Graduation	string	`json:"Graduation"`	// 毕（结）业
+	CertNo	string	`json:"CertNo"`	// 证书编号
+
+	Photo	string	`json:"Photo"`	// 照片
+
+	Historys	[]HistoryItem	// 当前edu的历史记录
 }
 
+type HistoryItem struct {
+	TxId	string
+	Education	Education
+}
 ```
 
-### 3.3. 创建SDK
+
+
+## 2.3 编写链码
+
+在 `chaincode` 目录下创建一个 `main.go` 的文件并对其进行编辑
+
+```shell
+$ vim chaincode/main.go
+```
+
+`main.go` 文件作为链码的主文件，主要声明 `Init(stub shim.ChaincodeStubInterface)、Invoke(stub shim.ChaincodeStubInterface)  `  函数，完成对链码初始化及调用的相关实现，完整代码如下：
+
+```go
+/**
+  @Author : hanxiaodong
+*/
+package main
+
+import (
+	"github.com/hyperledger/fabric/core/chaincode/shim"
+	"fmt"
+	"github.com/hyperledger/fabric/protos/peer"
+)
+
+type EducationChaincode struct {
+
+}
+
+func (t *EducationChaincode) Init(stub shim.ChaincodeStubInterface) peer.Response{
+
+	return shim.Success(nil)
+}
+
+func (t *EducationChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Response{
+	// 获取用户意图
+	fun, args := stub.GetFunctionAndParameters()
+
+	if fun == "addEdu"{
+		return t.addEdu(stub, args)		// 添加信息
+	}else if fun == "queryEduByCertNoAndName" {
+		return t.queryEduByCertNoAndName(stub, args)		// 根据证书编号及姓名查询信息
+	}else if fun == "queryEduInfoByEntityID" {
+		return t.queryEduInfoByEntityID(stub, args)	// 根据身份证号码及姓名查询详情
+	}else if fun == "updateEdu" {
+		return t.updateEdu(stub, args)		// 根据证书编号更新信息
+	}else if fun == "delEdu"{
+		return t.delEdu(stub, args)	// 根据证书编号删除信息
+	}
+
+	return shim.Error("指定的函数名称错误")
+
+}
+
+func main(){
+	err := shim.Start(new(EducationChaincode))
+	if err != nil{
+		fmt.Printf("启动EducationChaincode时发生错误: %s", err)
+	}
+}
+```
+
+
+
+创建 `eduCC.go` 文件，该文件实现了使用链码相关的API对分类账本状态进行具体操作的各个函数：
+
+- **PutEdu：**实现将指定的对象序列化后保存至分类账本中
+- **GetEduInfo：**根据指定的Key（身份证号码）查询对应的状态，反序列后将对象返回
+- **getEduByQueryString：**根据指定的查询字符串从 `CouchDB` 中查询状态
+- **addEdu：**接收对象并调用 `PutEdu` 函数实现保存状态的功能
+- **queryEduByCertNoAndName：**根据指定的证书编号与姓名查询状态
+- **queryEduInfoByEntityID：**根据指定的身份证号码（Key）查询状态
+- **updateEdu：**实现对状态进行编辑功能
+- **delEdu：**从分类账本中删除状态，此功能暂不提供
+
+`eduCC.go` 文件完整内容如下：
+
+```go
+/**
+  @Author : hanxiaodong
+*/
+
+package main
+
+import (
+	"github.com/hyperledger/fabric/core/chaincode/shim"
+	"github.com/hyperledger/fabric/protos/peer"
+	"encoding/json"
+	"fmt"
+	"bytes"
+)
+
+const DOC_TYPE = "eduObj"
+
+// 保存edu
+// args: education
+func PutEdu(stub shim.ChaincodeStubInterface, edu Education) ([]byte, bool) {
+
+	edu.ObjectType = DOC_TYPE
+
+	b, err := json.Marshal(edu)
+	if err != nil {
+		return nil, false
+	}
+
+	// 保存edu状态
+	err = stub.PutState(edu.EntityID, b)
+	if err != nil {
+		return nil, false
+	}
+
+	return b, true
+}
+
+// 根据身份证号码查询信息状态
+// args: entityID
+func GetEduInfo(stub shim.ChaincodeStubInterface, entityID string) (Education, bool)  {
+	var edu Education
+	// 根据身份证号码查询信息状态
+	b, err := stub.GetState(entityID)
+	if err != nil {
+		return edu, false
+	}
+
+	if b == nil {
+		return edu, false
+	}
+
+	// 对查询到的状态进行反序列化
+	err = json.Unmarshal(b, &edu)
+	if err != nil {
+		return edu, false
+	}
+
+	// 返回结果
+	return edu, true
+}
+
+// 根据指定的查询字符串实现富查询
+func getEduByQueryString(stub shim.ChaincodeStubInterface, queryString string) ([]byte, error) {
+
+	resultsIterator, err := stub.GetQueryResult(queryString)
+	if err != nil {
+		return nil, err
+	}
+	defer  resultsIterator.Close()
+
+	// buffer is a JSON array containing QueryRecords
+	var buffer bytes.Buffer
+
+	bArrayMemberAlreadyWritten := false
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		// Add a comma before array members, suppress it for the first array member
+		if bArrayMemberAlreadyWritten == true {
+			buffer.WriteString(",")
+		}
+
+		// Record is a JSON object, so we write as-is
+		buffer.WriteString(string(queryResponse.Value))
+		bArrayMemberAlreadyWritten = true
+	}
+
+	fmt.Printf("- getQueryResultForQueryString queryResult:\n%s\n", buffer.String())
+
+	return buffer.Bytes(), nil
+
+}
+
+// 添加信息
+// args: educationObject
+// 身份证号为 key, Education 为 value
+func (t *EducationChaincode) addEdu(stub shim.ChaincodeStubInterface, args []string) peer.Response {
+
+	if len(args) != 2{
+		return shim.Error("给定的参数个数不符合要求")
+	}
+
+	var edu Education
+	err := json.Unmarshal([]byte(args[0]), &edu)
+	if err != nil {
+		return shim.Error("反序列化信息时发生错误")
+	}
+
+	// 查重: 身份证号码必须唯一
+	_, exist := GetEduInfo(stub, edu.EntityID)
+	if exist {
+		return shim.Error("要添加的身份证号码已存在")
+	}
+
+	_, bl := PutEdu(stub, edu)
+	if !bl {
+		return shim.Error("保存信息时发生错误")
+	}
+
+	err = stub.SetEvent(args[1], []byte{})
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	return shim.Success([]byte("信息添加成功"))
+}
+
+// 根据证书编号及姓名查询信息
+// args: CertNo, name
+func (t *EducationChaincode) queryEduByCertNoAndName(stub shim.ChaincodeStubInterface, args []string) peer.Response {
+
+	if len(args) != 2 {
+		return shim.Error("给定的参数个数不符合要求")
+	}
+	CertNo := args[0]
+	name := args[1]
+
+	// 拼装CouchDB所需要的查询字符串(是标准的一个JSON串)
+	// queryString := fmt.Sprintf("{\"selector\":{\"docType\":\"eduObj\", \"CertNo\":\"%s\"}}", CertNo)
+	queryString := fmt.Sprintf("{\"selector\":{\"docType\":\"%s\", \"CertNo\":\"%s\", \"Name\":\"%s\"}}", DOC_TYPE, CertNo, name)
+
+	// 查询数据
+	result, err := getEduByQueryString(stub, queryString)
+	if err != nil {
+		return shim.Error("根据证书编号及姓名查询信息时发生错误")
+	}
+	if result == nil {
+		return shim.Error("根据指定的证书编号及姓名没有查询到相关的信息")
+	}
+	return shim.Success(result)
+}
+
+// 根据身份证号码查询详情（溯源）
+// args: entityID
+func (t *EducationChaincode) queryEduInfoByEntityID(stub shim.ChaincodeStubInterface, args []string) peer.Response {
+	if len(args) != 1 {
+		return shim.Error("给定的参数个数不符合要求")
+	}
+
+	// 根据身份证号码查询edu状态
+	b, err := stub.GetState(args[0])
+	if err != nil {
+		return shim.Error("根据身份证号码查询信息失败")
+	}
+
+	if b == nil {
+		return shim.Error("根据身份证号码没有查询到相关的信息")
+	}
+
+	// 对查询到的状态进行反序列化
+	var edu Education
+	err = json.Unmarshal(b, &edu)
+	if err != nil {
+		return  shim.Error("反序列化edu信息失败")
+	}
+
+	// 获取历史变更数据
+	iterator, err := stub.GetHistoryForKey(edu.EntityID)
+	if err != nil {
+		return shim.Error("根据指定的身份证号码查询对应的历史变更数据失败")
+	}
+	defer iterator.Close()
+
+	// 迭代处理
+	var historys []HistoryItem
+	var hisEdu Education
+	for iterator.HasNext() {
+		hisData, err := iterator.Next()
+		if err != nil {
+			return shim.Error("获取edu的历史变更数据失败")
+		}
+
+		var historyItem HistoryItem
+		historyItem.TxId = hisData.TxId
+		json.Unmarshal(hisData.Value, &hisEdu)
+
+		if hisData.Value == nil {
+			var empty Education
+			historyItem.Education = empty
+		}else {
+			historyItem.Education = hisEdu
+		}
+
+		historys = append(historys, historyItem)
+
+	}
+
+	edu.Historys = historys
+
+	// 返回
+	result, err := json.Marshal(edu)
+	if err != nil {
+		return shim.Error("序列化edu信息时发生错误")
+	}
+	return shim.Success(result)
+}
+
+// 根据身份证号更新信息
+// args: educationObject
+func (t *EducationChaincode) updateEdu(stub shim.ChaincodeStubInterface, args []string) peer.Response {
+	if len(args) != 2{
+		return shim.Error("给定的参数个数不符合要求")
+	}
+
+	var info Education
+	err := json.Unmarshal([]byte(args[0]), &info)
+	if err != nil {
+		return  shim.Error("反序列化edu信息失败")
+	}
+
+	// 根据身份证号码查询信息
+	result, bl := GetEduInfo(stub, info.EntityID)
+	if !bl{
+		return shim.Error("根据身份证号码查询信息时发生错误")
+	}
+
+	result.EnrollDate = info.EnrollDate
+	result.GraduationDate = info.GraduationDate
+	result.SchoolName = info.SchoolName
+	result.Major = info.Major
+	result.QuaType = info.QuaType
+	result.Length = info.Length
+	result.Mode = info.Mode
+	result.Level = info.Level
+	result.Graduation = info.Graduation
+	result.CertNo = info.CertNo;
+
+	_, bl = PutEdu(stub, result)
+	if !bl {
+		return shim.Error("保存信息信息时发生错误")
+	}
+
+	err = stub.SetEvent(args[1], []byte{})
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	return shim.Success([]byte("信息更新成功"))
+}
+
+// 根据身份证号删除信息（暂不对外提供）
+// args: entityID
+func (t *EducationChaincode) delEdu(stub shim.ChaincodeStubInterface, args []string) peer.Response {
+	if len(args) != 2{
+		return shim.Error("给定的参数个数不符合要求")
+	}
+
+	/*var edu Education
+	result, bl := GetEduInfo(stub, info.EntityID)
+	err := json.Unmarshal(result, &edu)
+	if err != nil {
+		return shim.Error("反序列化信息时发生错误")
+	}*/
+
+	err := stub.DelState(args[0])
+	if err != nil {
+		return shim.Error("删除信息时发生错误")
+	}
+
+	err = stub.SetEvent(args[1], []byte{})
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	return shim.Success([]byte("信息删除成功"))
+}
+```
+
+
+
+## 2.4 SDK实现
+
+链码编写好以后，我们需要使用 Fabric-SDK-Go 提供的相关 API 来实现对链码的安装及实例化操作，而无需在命令提示符中输入烦锁的相关操作命令。接下来依次完成如下步骤：
+
+### 2.4.1 创建SDK
 
 在 `sdkInit` 目录下新创建一个名为 `start.go` 的go文件利用 vim 编辑器进行编辑：
 
 ```shell
+$ cd $GOPATH/src/github.com/kongyixueyuan.com/education
 $ vim sdkInit/start.go 
 ```
 
@@ -817,9 +1282,7 @@ import (
 
 )
 
-
 const ChaincodeVersion  = "1.0"
-
 
 func SetupSDK(ConfigFile string, initialized bool) (*fabsdk.FabricSDK, error) {
 
@@ -886,12 +1349,12 @@ func CreateChannel(sdk *fabsdk.FabricSDK, info *InitInfo) error {
 
 在这个阶段，我们只初始化一个客户端，它将与 peer，CA 和 orderer进行通信。 还创建了一个指定的应用通道, 并将 Peer 节点加入到此通道中
 
-### 3.4. 编写测试代码
+### 2.4.2 编写测试代码
 
 为了确保客户端能够初始化所有组件，将在启动网络的情况下进行简单的测试。 为了做到这一点，我们需要编写 Go 代码，在项目根目录下新创建一个 `main.go` 的主文件并编辑内容
 
 ```shell
-$ cd $GOPATH/src/github.com/kongyixueyuan.com/kongyixueyuan
+$ cd $GOPATH/src/github.com/kongyixueyuan.com/education
 $ vim main.go
 ```
 
@@ -906,13 +1369,13 @@ package main
 import (
 	"os"
 	"fmt"
-	"github.com/kongyixueyuan.com/kongyixueyuan/sdkInit"
+	"github.com/kongyixueyuan.com/education/sdkInit"
 )
 
 const (
 	configFile = "config.yaml"
 	initialized = false
-	SimpleCC = "simplecc"
+	SimpleCC = "educc"
 )
 
 func main() {
@@ -920,7 +1383,7 @@ func main() {
 	initInfo := &sdkInit.InitInfo{
 
 		ChannelID: "kevinkongyixueyuan",
-		ChannelConfig: os.Getenv("GOPATH") + "/src/github.com/kongyixueyuan.com/kongyixueyuan/fixtures/artifacts/channel.tx",
+		ChannelConfig: os.Getenv("GOPATH") + "/src/github.com/kongyixueyuan.com/education/fixtures/artifacts/channel.tx",
 
 		OrgAdmin:"Admin",
 		OrgName:"Org1",
@@ -945,9 +1408,9 @@ func main() {
 }
 ```
 
-## 4. 满足依赖
 
-### 4.1. 安装dep工具
+
+### 2.5 安装dep工具
 
 在运行应用程序之前，需要将 Go 源代码时行编译，但在开始编译之前，我们需要使用一个 `vendor` 目录来包含应用中所需的所有的依赖关系。 在我们的GOPATH中，我们有Fabric SDK Go和其他项目。 在尝试编译应用程序时，Golang 会在 GOPATH 中搜索依赖项，但首先会检查项目中是否存在`vendor` 文件夹。 如果依赖性得到满足，那么 Golang 就不会去检查 GOPATH 或 GOROOT。 这在使用几个不同版本的依赖关系时非常有用（可能会发生一些冲突，比如在例子中有多个BCCSP定义，通过使用像[`dep`](https://translate.googleusercontent.com/translate_c?depth=1&hl=zh-CN&rurl=translate.google.com&sl=en&sp=nmt4&tl=zh-CN&u=https://github.com/golang/dep&xid=25657,15700002,15700019,15700124,15700149,15700168,15700186,15700201&usg=ALkJrhgelyRl7D3pIJRpuA8cynagkWYHXg)这样的工具在`vendor`目录中来处理这些依赖关系。
 
@@ -969,9 +1432,11 @@ $ source ~/.bashrc
 
 ```shell
 $ go get -u github.com/golang/dep/cmd/dep
+
+go get -v -u github.com/golang/dep/cmd/dep
 ```
 
-### 4.2. 下载所需依赖
+### 2.5.1 下载所需依赖
 
 `dep` 工具安装好之后我们来安装应用所需要的依赖
 
@@ -981,10 +1446,11 @@ $ go get -u github.com/golang/dep/cmd/dep
 
 ```shell
 $ vim Gopkg.toml
+在education目录下
 ```
 
 ```toml
-ignored = ["github.com/kongyixueyuan.com/kongyixueyuan/chaincode"]
+ignored = ["github.com/kongyixueyuan.com/education/chaincode"]
 
 [[constraint]]
   # Release v1.0.0-alpha4
@@ -1005,7 +1471,7 @@ $ dep ensure
 
 提醒：`dep ensure` 命令执行由于时间比较长，所以执行一次后即可，在后面的Makefile中可注释`@dep ensure`命令。
 
-### 4.3. 测试Fabric-SDK
+### 2.5.2 测试Fabric-SDK
 
 所在依赖下载安装完成后，我们就可以进行测试
 
@@ -1021,18 +1487,12 @@ $ docker-compose up -d
 ```shell
 $ cd ..
 $ go build
-$ ./kongyixueyuan
+$ ./education
 ```
 
 命令执行后输出结果如下图所示：
 
-![创建通道并加入指定的Peers](./img/11.1_5.png)
-
-如果出现上图的输出结果，则说明执行成功，否则需要根据出现的错误提示进行相应的处理。
-
-
-
-### 4.4. 利用Makefile
+### 2.5.3 利用Makefile
 
 Fabric SDK生成一些文件，如证书，二进制文件和临时文件。 关闭网络不会完全清理环境，当需要重新启动时，这些文件将被使用以避免重复的构建过程。 对于开发，可以快速测试，但对于真正的测试环境，需要清理所有内容并从头开始。
 
@@ -1041,7 +1501,7 @@ Fabric SDK生成一些文件，如证书，二进制文件和临时文件。 关
 - 关闭你的网络： 
 
   ```shell
-  $ cd $GOPATH/src/github.com/kongyixueyuan.com/kongyixueyuan/fixtures 
+  $ cd $GOPATH/src/github.com/kongyixueyuan.com/education/fixtures 
   $ docker-compose down
   ```
 
@@ -1076,7 +1536,7 @@ $ make --version
 然后使用以下内容在项目的根目录下创建一个名为`Makefile`的文件并进行编辑：
 
 ```shell
-$ cd $GOPATH/src/github.com/kongyixueyuan.com/kongyixueyuan
+$ cd $GOPATH/src/github.com/kongyixueyuan.com/education
 $ vim Makefile
 ```
 
@@ -1110,7 +1570,7 @@ env-down:
 ##### RUN
 run:
 	@echo "Start app ..."
-	@./kongyixueyuan
+	@./education
 
 ##### CLEAN
 clean: env-down
@@ -1119,7 +1579,6 @@ clean: env-down
 	@docker rm -f -v `docker ps -a --no-trunc | grep "kongyixueyuan" | cut -d ' ' -f 1` 2>/dev/null || true
 	@docker rmi `docker images --no-trunc | grep "kongyixueyuan" | cut -d ' ' -f 1` 2>/dev/null || true
 	@echo "Clean up done"
-
 ```
 
 现在完成任务：
@@ -1137,146 +1596,13 @@ clean: env-down
 - 任务`env-up` ：只需建立网络（ `make env-up` ）
 - ...
 
+![createchannel](./img/createchannel.png)
 
+如果出现上图的输出结果，则说明执行成功，否则需要根据出现的错误提示进行相应的处理。
 
-## 5. 链码开发
+## 2.6 链码安装及实例化
 
-为了便于测试及简化代码，我们实现一个简单的链码功能，能够实现对分类账本中的数据进行设置（PutState（k，v））及相应的查询（GetState（k））功能即可。
-
-### 5.1. 编写链码
-
-创建一个存放链码文件的 `chaincode` 目录，然后在该目录下创建一个 `main.go` 的文件并对其进行编辑
-
-```shell
-$ mkdir chaincode
-$ vim chaincode/main.go
-```
-
-`main.go` 文件内容如下：
-
-```go
-/**
-  author: hanxiaodong
- */
-package main
-
-import (
-	"github.com/hyperledger/fabric/core/chaincode/shim"
-	"github.com/hyperledger/fabric/protos/peer"
-	"fmt"
-)
-
-type SimpleChaincode struct {
-
-} 
-
-func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) peer.Response{
-
-	return shim.Success(nil)
-}
-
-func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Response{
-	fun, args := stub.GetFunctionAndParameters()
-
-	var result string
-	var err error
-	if fun == "set"{
-		result, err = set(stub, args)
-	}else{
-		result, err = get(stub, args)
-	}
-	if err != nil{
-		return shim.Error(err.Error())
-	}
-	return shim.Success([]byte(result))
-}
-
-func set(stub shim.ChaincodeStubInterface, args []string)(string, error){
-
-	if len(args) != 3{
-		return "", fmt.Errorf("给定的参数错误")
-	}
-
-	err := stub.PutState(args[0], []byte(args[1]))
-	if err != nil{
-		return "", fmt.Errorf(err.Error())
-	}
-
-	err = stub.SetEvent(args[2], []byte{})
-	if err != nil {
-		return "", fmt.Errorf(err.Error())
-	}
-
-	return string(args[0]), nil
-
-}
-
-func get(stub shim.ChaincodeStubInterface, args []string)(string, error){
-	if len(args) != 1{
-		return "", fmt.Errorf("给定的参数错误")
-	}
-	result, err := stub.GetState(args[0])
-	if err != nil{
-		return "", fmt.Errorf("获取数据发生错误")
-	}
-	if result == nil{
-		return "", fmt.Errorf("根据 %s 没有获取到相应的数据", args[0])
-	}
-	return string(result), nil
-
-}
-
-func main(){
-	err := shim.Start(new(SimpleChaincode))
-	if err != nil{
-		fmt.Printf("启动SimpleChaincode时发生错误: %s", err)
-	}
-}
-
-```
-
-链码编写好以后，我们需要使用 Fabric-SDK-Go 提供的相关 API 来实现对链码的安装及实例化操作，而无需在命令提示符中输入烦锁的相关操作命令。
-
-## 6. 链码安装及实例化
-
-### 6.1. 声明结构体
-
-新建一个结构体，声明在 `sdkInit/fabricInitInfo.go` 文件中
-
-```shell
-$ vim sdkInit/fabricInitInfo.go
-```
-
-`fabricInitInfo.go` 文件完整内容如下：
-
-```go
-/**
-  author: hanxiaodong
- */
-package sdkInit
-
-import (
-	"github.com/hyperledger/fabric-sdk-go/pkg/client/resmgmt"
-)
-
-type InitInfo struct {
-	ChannelID     string
-	ChannelConfig string
-	OrgAdmin      string
-	OrgName       string
-	OrdererOrgName	string
-	OrgResMgmt *resmgmt.Client
-
-	ChaincodeID	string
-	ChaincodeGoPath	string
-	ChaincodePath	string
-	UserName	string
-}
-```
-
-
-
-### 6.2. 使用Fabric-SDK安装及实例化链码
+### 2.6.1 使用Fabric-SDK安装及实例化链码
 
 编辑 `sdkInit/start.go` 文件，利用Fabric-SDK提供的接口，对链码进行安装及实例化
 
@@ -1295,8 +1621,6 @@ import (
 	"github.com/hyperledger/fabric-sdk-go/pkg/client/channel"
 )
 
-// hanxiaodong
-// QQ群（专业Fabric交流群）：862733552
 func InstallAndInstantiateCC(sdk *fabsdk.FabricSDK, info *InitInfo) (*channel.Client, error) {
 	fmt.Println("开始安装链码......")
 	// creates new go lang chaincode package
@@ -1341,7 +1665,7 @@ func InstallAndInstantiateCC(sdk *fabsdk.FabricSDK, info *InitInfo) (*channel.Cl
 }
 ```
 
-### 6.3. 在main中调用
+### 2.6.2 在main中调用
 
 编辑 `main.go` 文件
 
@@ -1360,13 +1684,13 @@ package main
 import (
 	"os"
 	"fmt"
-	"github.com/kongyixueyuan.com/kongyixueyuan/sdkInit"
+	"github.com/kongyixueyuan.com/education/sdkInit"
 )
 
 const (
 	configFile = "config.yaml"
 	initialized = false
-	SimpleCC = "simplecc"
+	SimpleCC = "educc"
 )
 
 func main() {
@@ -1374,7 +1698,7 @@ func main() {
 	initInfo := &sdkInit.InitInfo{
 
 		ChannelID: "kevinkongyixueyuan",
-		ChannelConfig: os.Getenv("GOPATH") + "/src/github.com/kongyixueyuan.com/kongyixueyuan/fixtures/artifacts/channel.tx",
+		ChannelConfig: os.Getenv("GOPATH") + "/src/github.com/kongyixueyuan.com/education/fixtures/artifacts/channel.tx",
 
 		OrgAdmin:"Admin",
 		OrgName:"Org1",
@@ -1382,7 +1706,7 @@ func main() {
 
 		ChaincodeID: SimpleCC,
 		ChaincodeGoPath: os.Getenv("GOPATH"),
-		ChaincodePath: "github.com/kongyixueyuan.com/kongyixueyuan/chaincode/",
+		ChaincodePath: "github.com/kongyixueyuan.com/education/chaincode/",
 		UserName:"User1",
 	}
 
@@ -1410,7 +1734,7 @@ func main() {
 }
 ```
 
-### 6.4. 测试
+### 2.6.3 测试
 
 执行 `make` 命令
 
@@ -1420,20 +1744,20 @@ $ make
 
 输出如下：
 
-![cc实例化成功](./img/11.1_6.png)
+![cc实例化成功](./img/installcc.png)
 
 
 
-在此，我们已经成功搭建了Fabric的网络环境，并通过 `fabric-sdk-go` 创建了应用通道，将peer加入通道，在peer上安装并实例化了链码。那么如何在真正的应用程序中实现链码的调用，对分类账本中的状态进行操作，`fabric-sdk` 不仅提供了相应的强大功能，而且还给开发人员设计提供了相应的API 接口，以方便开发人员随时调用。做为开发设计人员，我们不仅要考虑用户操作的方便性及可交互性，还需要考虑应用程序后期的可扩展性及维护性，为此我们将为应用增加一个业务层，所有的客户请求都由业务层发送给链码，通过对链码的调用，进而实现对分类账本状态的操作。
 
-## 7. 在业务层调用链码
 
-### 7.1. 事件处理
+#3 业务层实现
+
+##3.1 事件处理
 
 在项目根目录下创建一个 `service` 目录作为业务层，在业务层中，我们使用 `Fabric-SDK-Go` 提供的接口对象调用相应的 API 以实现对链码的访问，最终实现对分类账本中的状态进行操作。 
 
 ```shell
-$ cd $GOPATH/src/github.com/kongyixueyuan.com/kongyixueyuan
+$ cd $GOPATH/src/github.com/kongyixueyuan.com/education
 $ mkdir service
 ```
 
@@ -1447,9 +1771,8 @@ $ vim service/domain.go
 
 ```go
 /**
-  author: hanxiaodong
- */
-
+  @Author : hanxiaodong
+*/
 package service
 
 import (
@@ -1458,6 +1781,35 @@ import (
 	"time"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
 )
+
+type Education struct {
+	ObjectType	string	`json:"docType"`
+	Name	string	`json:"Name"`		// 姓名
+	Gender	string	`json:"Gender"`		// 性别
+	Nation	string	`json:"Nation"`		// 民族
+	EntityID	string	`json:"EntityID"`		// 身份证号
+	Place	string	`json:"Place"`		// 籍贯
+	BirthDay	string	`json:"BirthDay"`		// 出生日期
+	EnrollDate	string	`json:"EnrollDate"`		// 入学日期
+	GraduationDate	string	`json:"GraduationDate"`	// 毕（结）业日期
+	SchoolName	string	`json:"SchoolName"`	// 学校名称
+	Major	string	`json:"Major"`	// 专业
+	QuaType	string	`json:"QuaType"`	// 学历类别
+	Length	string	`json:"Length"`	// 学制
+	Mode	string	`json:"Mode"`	// 学习形式
+	Level	string	`json:"Level"`	// 层次
+	Graduation	string	`json:"Graduation"`	// 毕（结）业
+	CertNo	string	`json:"CertNo"`	// 证书编号
+
+	Photo	string	`json:"Photo"`	// 照片
+
+	Historys	[]HistoryItem	// 当前edu的历史记录
+}
+
+type HistoryItem struct {
+	TxId	string
+	Education	Education
+}
 
 type ServiceSetup struct {
 	ChaincodeID	string
@@ -1484,33 +1836,43 @@ func eventResult(notifier <-chan *fab.CCEvent, eventID string) error {
 }
 ```
 
-### 7.2. 调用链码添加状态
 
-在 `service` 目录下创建 `SimpleService.go` 文件
+
+## 3.2 业务层调用链码实现添加状态
+
+在 `service` 目录下创建 `eduService.go` 文件
 
 ```shell
-$ vim service/SimpleService.go
+$ vim service/eduService.go
 ```
 
-在 `SimpleService.go` 文件中编写内容如下，通过一个 `SetInfo` 函数实现链码的调用，向分类账本中添加状态的功能：
+在 `eduService.go` 文件中编写内容如下，通过一个 `SaveEdu` 函数实现链码的调用，向分类账本中添加状态的功能：
 
 ```go
 /**
   author: hanxiaodong
+  QQ群（专业Fabric交流群）：862733552
  */
 package service
 
 import (
 	"github.com/hyperledger/fabric-sdk-go/pkg/client/channel"
+    "encoding/json"
 )
 
-func (t *ServiceSetup) SetInfo(name, num string) (string, error) {
+func (t *ServiceSetup) SaveEdu(edu Education) (string, error) {
 
-	eventID := "eventSetInfo"
+	eventID := "eventAddEdu"
 	reg, notifier := regitserEvent(t.Client, t.ChaincodeID, eventID)
 	defer t.Client.UnregisterChaincodeEvent(reg)
 
-	req := channel.Request{ChaincodeID: t.ChaincodeID, Fcn: "set", Args: [][]byte{[]byte(name), []byte(num), []byte(eventID)}}
+	// 将edu对象序列化成为字节数组
+	b, err := json.Marshal(edu)
+	if err != nil {
+		return "", fmt.Errorf("指定的edu对象序列化时发生错误")
+	}
+
+	req := channel.Request{ChaincodeID: t.ChaincodeID, Fcn: "addEdu", Args: [][]byte{b, []byte(eventID)}}
 	respone, err := t.Client.Execute(req)
 	if err != nil {
 		return "", err
@@ -1525,6 +1887,8 @@ func (t *ServiceSetup) SetInfo(name, num string) (string, error) {
 }
 ```
 
+
+
 **测试添加状态**
 
 编辑 `main.go` 文件
@@ -1533,7 +1897,7 @@ func (t *ServiceSetup) SetInfo(name, num string) (string, error) {
 $ vim main.go
 ```
 
-`main.go` 中创建一个对象，并调用 `SetInfo` 函数，内容如下：
+`main.go` 中创建两个 `edu` 个对象，并调用 `SaveEdu` 函数，内容如下：
 
 ```go
 /**
@@ -1544,28 +1908,77 @@ package main
 
 import (
 	[......]
-	"github.com/kongyixueyuan.com/kongyixueyuan/service"
+	"github.com/kongyixueyuan.com/education/service"
 )
 
 [......]
 	//===========================================//
 
 	serviceSetup := service.ServiceSetup{
-		ChaincodeID:SimpleCC,
+		ChaincodeID:EduCC,
 		Client:channelClient,
 	}
 
-	msg, err := serviceSetup.SetInfo("hanxiaodong", "kongyixueyuan")
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(msg)
+	edu := service.Education{
+		Name: "张三",
+		Gender: "男",
+		Nation: "汉",
+		EntityID: "101",
+		Place: "北京",
+		BirthDay: "1991年01月01日",
+		EnrollDate: "2009年9月",
+		GraduationDate: "2013年7月",
+		SchoolName: "中国政法大学",
+		Major: "社会学",
+		QuaType: "普通",
+		Length: "四年",
+		Mode: "普通全日制",
+		Level: "本科",
+		Graduation: "毕业",
+		CertNo: "111",
+		Photo: "/static/phone/11.png",
 	}
+
+	edu2 := service.Education{
+		Name: "李四",
+		Gender: "男",
+		Nation: "汉",
+		EntityID: "102",
+		Place: "上海",
+		BirthDay: "1992年02月01日",
+		EnrollDate: "2010年9月",
+		GraduationDate: "2014年7月",
+		SchoolName: "中国人民大学",
+		Major: "行政管理",
+		QuaType: "普通",
+		Length: "四年",
+		Mode: "普通全日制",
+		Level: "本科",
+		Graduation: "毕业",
+		CertNo: "222",
+		Photo: "/static/phone/22.png",
+	}
+
+	msg, err := serviceSetup.SaveEdu(edu)
+	if err != nil {
+		fmt.Println(err.Error())
+	}else {
+		fmt.Println("信息发布成功, 交易编号为: " + msg)
+	}
+
+	msg, err = serviceSetup.SaveEdu(edu2)
+	if err != nil {
+		fmt.Println(err.Error())
+	}else {
+		fmt.Println("信息发布成功, 交易编号为: " + msg)
+	}	
 
 	//===========================================//
 
 }
 ```
+
+
 
 执行 `make` 命令运行应用程序
 
@@ -1575,36 +1988,37 @@ $ make
 
 执行后如下图所示：
 
-![测试添加状态](./img/11.1_7_1.png)
+![测试添加状态](./img/saveedu.png)
 
 
 
-### 7.3. 调用链码查询状态
+## 3.3 调用链码实现根据证书编号与名称查询状态
 
-通过上面的 `setInfo(name, num string)` 函数，实现了向分类账本中添加状态，那么我们还需要实现从该分类账本中根据指定的 key 查询出相应的状态，编辑 `service/SimpleService.go` 文件，向该文件中添加实现查询状态的相应代码。
+通过上面的 `SaveEdu(edu Education)` 函数，实现了向分类账本中添加状态，那么我们还需要实现从该分类账本中根据指定的条件查询出相应的状态，编辑 `service/eduService.go` 文件，向该文件中添加实现根据证书编号与姓名查询状态的相应代码。
 
 ```shell
-$ vim service/SimpleService.go
+$ vim service/eduService.go
 ```
 
-定义一个 `GetInfo` 函数，接收一个字符串类型的参数，该函数实现通过调用链码而查询状态的功能，该函数完整代码如下：
+定义一个 `FindEduByCertNoAndName` 函数，接收两个字符串类型的参数，分别代表证书编号与姓名，该函数实现通过调用链码而实现查询状态的功能，该函数完整代码如下：
 
 ```go
 [......]
 
-func (t *ServiceSetup) GetInfo(name string) (string, error){
+func (t *ServiceSetup) FindEduByCertNoAndName(certNo, name string) ([]byte, error){
 
-	req := channel.Request{ChaincodeID: t.ChaincodeID, Fcn: "get", Args: [][]byte{[]byte(name)}}
+	req := channel.Request{ChaincodeID: t.ChaincodeID, Fcn: "queryEduByCertNoAndName", Args: [][]byte{[]byte(certNo), []byte(name)}}
 	respone, err := t.Client.Query(req)
 	if err != nil {
-		return "", err
+		return []byte{0x00}, err
 	}
 
-	return string(respone.Payload), nil
+	return respone.Payload, nil
 }
+
 ```
 
-**测试查询状态**
+**测试根据证书编号与名称查询状态**
 
 编辑 `main.go` 文件
 
@@ -1617,11 +2031,15 @@ $ vim main.go
 ```go
 [......]
 	
-	msg, err = serviceSetup.GetInfo("hanxiaodong")
+	// 根据证书编号与名称查询信息
+	result, err := serviceSetup.FindEduByCertNoAndName("222","李四")
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println(err.Error())
 	} else {
-		fmt.Println(msg)
+		var edu service.Education
+		json.Unmarshal(result, &edu)
+        fmt.Println("根据证书编号与姓名查询信息成功：")
+		fmt.Println(edu)
 	}
 
 	//===========================================//
@@ -1637,114 +2055,983 @@ $ make
 
 执行后如下图所示：
 
-![业务层测试](./img/11.1_7_2.png)
+![证书编号查询测试](./img/findEduByCertNoAndName.png)
 
 
 
-## 8. 实现Web应用
+## 3.4 调用链码实现根据身份证号码查询状态
 
-### 8.1. 目录结构
-
-为了让其他用户也可以方便地使用应用程序，最好的选择是开发成为一个Web应用，以便于让用户通过浏览器就可以实现对分类账的操作。同样我们需要考虑应用程序后期的可扩展性及维护性，为此我们将应用程序进行了分层管理，设计增加了控制层及视图层。
-
-视图层提供用户的可视界面与交互，控制层接收用户的请求，由控制层访问业务层，进而调用链码对分类账进行操作，之后将操作结果响应给客户端浏览器。
-
-Go 语言本身提供了一个 Web 服务器来处理 HTTP 请求，并为 HTML 页面提供模板。下面我们来实现 Web 应用程序。
-
-新建web目录，包含三个其他目录的目录。将使用 MVC（Model（模型）－View（视图） - Controller（控制器））模式使其更具可读性及扩展性、维护性。模型将是区块链部分，视图是模板，控制器由`controllers`目录中的功能提供。
-
-- `web/tpl`：包含所有的HTML页面
-- `web/static`：包含所有静态CSS，Javascript，图片等文件
-- `web/controllers` ：包含将呈现模板的所有函数
+通过上面的 `FindEduByCertNoAndName(certNo, name string)` 函数，实现从该分类账本中根据指定的证书编号与姓名查询出相应的状态，下面我们来实现根据身份证号码查询状态的功能，编辑 `service/eduService.go` 文件，向该文件中添加实现根据 key 查询状态的相应代码。
 
 ```shell
-$ cd $GOPATH/src/github.com/kongyixueyuan.com/kongyixueyuan
+$ vim service/eduService.go
 ```
 
-创建相应的目录：
+定义一个 `FindEduInfoByEntityID` 函数，接收一个字符串类型的参数，代表身份证号码（key），该函数实现通过调用链码而实现查询状态的功能，该函数完整代码如下：
+
+```go
+[......]
+
+func (t *ServiceSetup) FindEduInfoByEntityID(entityID string) ([]byte, error){
+
+	req := channel.Request{ChaincodeID: t.ChaincodeID, Fcn: "queryEduInfoByEntityID", Args: [][]byte{[]byte(entityID)}}
+	respone, err := t.Client.Query(req)
+	if err != nil {
+		return []byte{0x00}, err
+	}
+
+	return respone.Payload, nil
+}
+```
+
+**测试根据身份证号码查询状态**
+
+编辑 `main.go` 文件
 
 ```shell
+$ vim main.go
+```
+
+在 `main.go` 文件中添加调用代码如下内容：
+
+```go
+[......]
+	
+	// 根据身份证号码查询信息
+	result, err = serviceSetup.FindEduInfoByEntityID("101")
+	if err != nil {
+		fmt.Println(err.Error())
+	} else {
+		var edu service.Education
+		json.Unmarshal(result, &edu)
+		fmt.Println("根据身份证号码查询信息成功：")
+		fmt.Println(edu)
+	}
+
+	//===========================================//
+
+}
+```
+
+执行 `make` 命令运行应用程序
+
+```shell
+$ make
+```
+
+执行后如下图所示：
+
+![身份证号码查询测试](./img/findEduInfoByEntityID.png)
+
+
+
+## 3.5 调用链码实现修改/添加信息状态
+
+在一些情况下，有些人才会利用工作的业余时间进修，从而提升学历层次，我们必须要考虑到这种情况，所以需要应用程序实现对已有人员的信息进行编辑的功能；但是编辑并不能将之前的学历信息删除，而是在保留之前状态的基础之上添加新的状态，区块链技术很好的帮我们解决了这个问题。编辑 `service/eduService.go` 文件，向该文件中添加修改已有状态的相关代码。
+
+```shell
+$ vim service/eduService.go
+```
+
+定义一个 `ModifyEdu` 函数，接收一个 `Education` 类型的对象，该函数实现通过调用链码而实现对已存在的状态进行修改（添加新信息）的功能，该函数完整代码如下：
+
+```go
+[......]
+
+func (t *ServiceSetup) ModifyEdu(edu Education) (string, error) {
+
+	eventID := "eventModifyEdu"
+	reg, notifier := regitserEvent(t.Client, t.ChaincodeID, eventID)
+	defer t.Client.UnregisterChaincodeEvent(reg)
+
+	// 将edu对象序列化成为字节数组
+	b, err := json.Marshal(edu)
+	if err != nil {
+		return "", fmt.Errorf("指定的edu对象序列化时发生错误")
+	}
+
+	req := channel.Request{ChaincodeID: t.ChaincodeID, Fcn: "updateEdu", Args: [][]byte{b, []byte(eventID)}}
+	respone, err := t.Client.Execute(req)
+	if err != nil {
+		return "", err
+	}
+
+	err = eventResult(notifier, eventID)
+	if err != nil {
+		return "", err
+	}
+
+	return string(respone.TransactionID), nil
+}
+```
+
+**测试修改状态**
+
+编辑 `main.go` 文件
+
+```shell
+$ vim main.go
+```
+
+在 `main.go` 文件中添加调用代码如下内容：
+
+```go
+[......]
+	
+	// 修改/添加信息
+	info := service.Education{
+		Name: "张三",
+		Gender: "男",
+		Nation: "汉",
+		EntityID: "101",
+		Place: "北京",
+		BirthDay: "1991年01月01日",
+		EnrollDate: "2013年9月",
+		GraduationDate: "2015年7月",
+		SchoolName: "中国政法大学",
+		Major: "社会学",
+		QuaType: "普通",
+		Length: "两年",
+		Mode: "普通全日制",
+		Level: "研究生",
+		Graduation: "毕业",
+		CertNo: "333",
+		Photo: "/static/phone/11.png",
+	}
+	msg, err = serviceSetup.ModifyEdu(info)
+	if err != nil {
+		fmt.Println(err.Error())
+	}else {
+		fmt.Println("信息操作成功, 交易编号为: " + msg)
+	}
+
+	//===========================================//
+
+}
+```
+
+
+
+执行 `make` 命令运行应用程序
+
+```shell
+$ make
+```
+
+执行后如下图所示：
+
+![修改信息测试](./img/modifyEdu.png)
+
+
+
+**查看修改之后的状态（根据身份证号码）**
+
+状态被修改之后，我们为了确认是否真正修改成功，所以需要调用已经编写好的 `FindEduInfoByEntityID(entityID string)` 函数实现查询详情的功能。
+
+编辑 `main.go` 文件
+
+```shell
+$ vim main.go
+```
+
+在 `main.go` 文件中添加调用代码如下内容：
+
+```go
+[......]
+	
+	// 根据身份证号码查询信息
+	result, err = serviceSetup.FindEduInfoByEntityID("101")
+	if err != nil {
+		fmt.Println(err.Error())
+	} else {
+		var edu service.Education
+		json.Unmarshal(result, &edu)
+		fmt.Println("根据身份证号码查询信息成功：")
+		fmt.Println(edu)
+	}
+
+	//===========================================//
+
+}
+```
+
+执行 `make` 命令运行应用程序
+
+```shell
+$ make
+```
+
+执行后如下图所示：
+
+![修改信息测试](./img/update_findEduInfoByEntityID.png)
+
+从终端的输出结果中可以看到详情信息已从分类账本中被成功查询，接下来我们使用根据证书编号与姓名查询修改之后的信息，看看是否正确
+
+**查看修改之后的最新状态（根据证书编号与姓名）**
+
+状态被修改之后，我们为了确认是否真正修改成功，所以需要调用已经编写好的 `FindEduInfoByEntityID(entityID string)` 函数实现查询详情的功能。
+
+编辑 `main.go` 文件
+
+```shell
+$ vim main.go
+```
+
+在 `main.go` 文件中添加调用代码如下内容：
+
+```go
+[......]
+	
+	// 根据证书编号与名称查询信息
+	result, err = serviceSetup.FindEduByCertNoAndName("333","张三")
+	if err != nil {
+		fmt.Println(err.Error())
+	} else {
+		var edu service.Education
+		json.Unmarshal(result, &edu)
+		fmt.Println("根据证书编号与姓名查询信息成功：")
+		fmt.Println(edu)
+	}
+
+	//===========================================//
+
+}
+```
+
+执行 `make` 命令运行应用程序
+
+```shell
+$ make
+```
+
+执行后如下图所示：
+
+![修改信息测试](./img/update_findEduByCertNoAndName.png)
+
+
+
+# 4 控制层实现
+
+## 4.1 设置系统用户
+
+通过业务层已经实现了利用 `fabric-sdk-go` 调用链码查询或操作分类账本状态，接下来，我们开始实现Web应用层，应用层将其分为两个部分，
+
+- **控制层**
+- **视图层**
+
+在项目根目录下新创建一个名为 `web`  的目录，用来存放Web应用层的所有内容
+
+```shell
+$ cd $GOPATH/src/github.com/kongyixueyuan.com/education
 $ mkdir -p web/controller
-$ mkdir -p web/static/css
-$ mkdir -p web/static/img
-$ mkdir -p web/tpl
 ```
 
-> 提示：可以直接使用 `git clone https://github.com/kevin-hf/hfsdkgoweb.git` 命令克隆完整的内容到项目的根目录中，然后将文件夹重命名： `mv hfsdkgoweb/ web` ，重新命名后直接跳至 8.6 步骤执行。
+在 `web` 目录下创建  `controller` 子目录，在该目录下创建 `userInfo.go` 、 `controllerResponse.go` 与 `controllerHandler.go` 三个文件
 
-**`web/controller`  目录**
+```shell
+$ vim web/controller/userInfo.go
+```
 
- `controller/controllerHandler.go` ： 用于接收并处理各种客户端请求的源代码文件
+`userInfo.go` 用来模拟RDB，保存系统用户信息，作为用户登录时核对用户信息，当然，这部分大家可以使用 `MySQL` 或其它数据库来实现。
 
- `controller/controllerResponse `：用于编写响应客户端请求的源代码文件
+`userInfo.go` 完整代码如下：
 
-**`web/static`目录下包括三个子目录，分别为：**
+```go
+/**
+  @Author : hanxiaodong
+*/
 
-`web/static/css` ：用于存放页面布局及显示样式所需的 `CSS` 文件
+package controller
 
-`web/static/js` ：用于存放编写的与用户交互的 `JavaScript` 源码文件
+import "github.com/kongyixueyuan.com/education/service"
 
-`web/static/img`：用户存放页面显示所需的所有图片文件
+type Application struct {
+	Setup *service.ServiceSetup
+}
 
-**`web/tpl` 目录下包括三个静态 HTML 页面文件，分别为：**
+type User struct {
+	LoginName	string
+	Password	string
+	IsAdmin	string
+}
 
-`web/tpl/index.html`： 用户访问的首页面
 
-`web/tpl/queryReq.html`： 用于显示显示查询结果的页面
+var users []User
 
-`web/tpl/setInfo.html`： 用户设置/修改状态的页面
+func init() {
 
-**`web/webServer.go`**：用于指定启动Web服务及相应的路由信息
+	admin := User{LoginName:"Hanxiaodong", Password:"123456", IsAdmin:"T"}
+	alice := User{LoginName:"ChainDesk", Password:"123456", IsAdmin:"T"}
+	bob := User{LoginName:"alice", Password:"123456", IsAdmin:"F"}
+	jack := User{LoginName:"bob", Password:"123456", IsAdmin:"F"}
 
-具体目录结构如下图所示：
+	users = append(users, admin)
+	users = append(users, alice)
+	users = append(users, bob)
+	users = append(users, jack)
 
-![web应用目录结构](./img/11.1_a.png)
+}
 
-### 8.2. 指定响应处理文件
+func isAdmin(cuser User) bool {
+	if cuser.IsAdmin == "T"{
+		return true
+	}
+	return false
+}
+```
 
-在 `web/controller` 目录下创建 `controllerResponse.go` 文件，用于响应客户端的请求
+
+
+## 4.2 处理响应
+
+创建 `controllerResponse.go`  文件
 
 ```shell
 $ vim web/controller/controllerResponse.go
 ```
 
-`controllerResponse.go` 内容参见：
+`controllerResponse.go` 主要实现对用户请求的响应，将响应结果返回给客户端浏览器。文件完整代码如下：
 
-- [web/controller/controllerResponse.go](https://github.com/kevin-hf/hfsdkgoweb/blob/master/controller/controllerResponse.go)
+```go
+/**
+  @Author : hanxiaodong
+*/
 
-### 8.3. 请求处理控制器
+package controller
 
-在 `web/controller` 目录下添加 `controllerHandler.go` 文件，用于接收客户端请求并做出相应的处理
+import (
+	"net/http"
+	"path/filepath"
+	"html/template"
+	"fmt"
+)
+
+func ShowView(w http.ResponseWriter, r *http.Request, templateName string, data interface{})  {
+
+	// 指定视图所在路径
+	pagePath := filepath.Join("web", "tpl", templateName)
+
+	resultTemplate, err := template.ParseFiles(pagePath)
+	if err != nil {
+		fmt.Printf("创建模板实例错误: %v", err)
+		return
+	}
+
+	err = resultTemplate.Execute(w, data)
+	if err != nil {
+		fmt.Printf("在模板中融合数据时发生错误: %v", err)
+		//fmt.Fprintf(w, "显示在客户端浏览器中的错误信息")
+		return
+	}
+
+}
+```
+
+
+
+## 4.3 处理请求
+
+创建 `controllerHandler.go` 文件
 
 ```shell
 $ vim web/controller/controllerHandler.go
 ```
 
-`controllerHandler.go` 文件中添加内容参见：
+`controllerHandler.go` 文件主要实现接收用户请求，并根据不同的用户请求调用业务层不同的函数，实现对分类账本的访问。其中需要声明并实现的函数：
 
-- [web/controller/controllerHandler.go](https://github.com/kevin-hf/hfsdkgoweb/blob/master/controller/controllerHandler.go)
+文件完整内容如下：
 
-### 8.4. 编写页面
+```go
+/**
+  @Author : hanxiaodong
+*/
 
-页面详细内容参见：
+package controller
 
-- [web/tpl/index.html](https://github.com/kevin-hf/hfsdkgoweb/blob/master/tpl/index.html)
-- [web/tpl/queryReq.html](https://github.com/kevin-hf/hfsdkgoweb/blob/master/tpl/queryReq.html)
-- [web/tpl/setInfo.html](https://github.com/kevin-hf/hfsdkgoweb/blob/master/tpl/setInfo.html)
+import (
+	"net/http"
+	"encoding/json"
+	"github.com/kongyixueyuan.com/education/service"
+	"fmt"
+)
 
-### 8.5. 添加路由信息
+var cuser User
 
-在  `web`  目录中添加  `webServer.go`  文件
+func (app *Application) LoginView(w http.ResponseWriter, r *http.Request)  {
+
+	ShowView(w, r, "login.html", nil)
+}
+
+func (app *Application) Index(w http.ResponseWriter, r *http.Request)  {
+	ShowView(w, r, "index.html", nil)
+}
+
+func (app *Application) Help(w http.ResponseWriter, r *http.Request)  {
+	data := &struct {
+		CurrentUser User
+	}{
+		CurrentUser:cuser,
+	}
+	ShowView(w, r, "help.html", data)
+}
+
+// 用户登录
+func (app *Application) Login(w http.ResponseWriter, r *http.Request) {
+	loginName := r.FormValue("loginName")
+	password := r.FormValue("password")
+
+	var flag bool
+	for _, user := range users {
+		if user.LoginName == loginName && user.Password == password {
+			cuser = user
+			flag = true
+			break
+		}
+	}
+
+	data := &struct {
+		CurrentUser User
+		Flag bool
+	}{
+		CurrentUser:cuser,
+		Flag:false,
+	}
+
+	if flag {
+		// 登录成功
+		ShowView(w, r, "index.html", data)
+	}else{
+		// 登录失败
+		data.Flag = true
+		data.CurrentUser.LoginName = loginName
+		ShowView(w, r, "login.html", data)
+	}
+}
+
+// 用户登出
+func (app *Application) LoginOut(w http.ResponseWriter, r *http.Request)  {
+	cuser = User{}
+	ShowView(w, r, "login.html", nil)
+}
+
+// 显示添加信息页面
+func (app *Application) AddEduShow(w http.ResponseWriter, r *http.Request)  {
+	data := &struct {
+		CurrentUser User
+		Msg string
+		Flag bool
+	}{
+		CurrentUser:cuser,
+		Msg:"",
+		Flag:false,
+	}
+	ShowView(w, r, "addEdu.html", data)
+}
+
+// 添加信息
+func (app *Application) AddEdu(w http.ResponseWriter, r *http.Request)  {
+
+	edu := service.Education{
+		Name:r.FormValue("name"),
+		Gender:r.FormValue("gender"),
+		Nation:r.FormValue("nation"),
+		EntityID:r.FormValue("entityID"),
+		Place:r.FormValue("place"),
+		BirthDay:r.FormValue("birthDay"),
+		EnrollDate:r.FormValue("enrollDate"),
+		GraduationDate:r.FormValue("graduationDate"),
+		SchoolName:r.FormValue("schoolName"),
+		Major:r.FormValue("major"),
+		QuaType:r.FormValue("quaType"),
+		Length:r.FormValue("length"),
+		Mode:r.FormValue("mode"),
+		Level:r.FormValue("level"),
+		Graduation:r.FormValue("graduation"),
+		CertNo:r.FormValue("certNo"),
+		Photo:r.FormValue("photo"),
+	}
+
+	app.Setup.SaveEdu(edu)
+	
+	r.Form.Set("certNo", edu.CertNo)
+	r.Form.Set("name", edu.Name)
+	app.FindCertByNoAndName(w, r)
+}
+
+func (app *Application) QueryPage(w http.ResponseWriter, r *http.Request)  {
+	data := &struct {
+		CurrentUser User
+		Msg string
+		Flag bool
+	}{
+		CurrentUser:cuser,
+		Msg:"",
+		Flag:false,
+	}
+	ShowView(w, r, "query.html", data)
+}
+
+// 根据证书编号与姓名查询信息
+func (app *Application) FindCertByNoAndName(w http.ResponseWriter, r *http.Request)  {
+	certNo := r.FormValue("certNo")
+	name := r.FormValue("name")
+	result, err := app.Setup.FindEduByCertNoAndName(certNo, name)
+	var edu = service.Education{}
+	json.Unmarshal(result, &edu)
+
+	fmt.Println("根据证书编号与姓名查询信息成功：")
+	fmt.Println(edu)
+
+	data := &struct {
+		Edu service.Education
+		CurrentUser User
+		Msg string
+		Flag bool
+		History bool
+	}{
+		Edu:edu,
+		CurrentUser:cuser,
+		Msg:"",
+		Flag:false,
+		History:false,
+	}
+
+	if err != nil {
+		data.Msg = err.Error()
+		data.Flag = true
+	}
+
+	ShowView(w, r, "queryResult.html", data)
+}
+
+func (app *Application) QueryPage2(w http.ResponseWriter, r *http.Request)  {
+	data := &struct {
+		CurrentUser User
+		Msg string
+		Flag bool
+	}{
+		CurrentUser:cuser,
+		Msg:"",
+		Flag:false,
+	}
+	ShowView(w, r, "query2.html", data)
+}
+
+// 根据身份证号码查询信息
+func (app *Application) FindByID(w http.ResponseWriter, r *http.Request)  {
+	entityID := r.FormValue("entityID")
+	result, err := app.Setup.FindEduInfoByEntityID(entityID)
+	var edu = service.Education{}
+	json.Unmarshal(result, &edu)
+
+	data := &struct {
+		Edu service.Education
+		CurrentUser User
+		Msg string
+		Flag bool
+		History bool
+	}{
+		Edu:edu,
+		CurrentUser:cuser,
+		Msg:"",
+		Flag:false,
+		History:true,
+	}
+
+	if err != nil {
+		data.Msg = err.Error()
+		data.Flag = true
+	}
+
+	ShowView(w, r, "queryResult.html", data)
+}
+
+// 修改/添加新信息
+func (app *Application) ModifyShow(w http.ResponseWriter, r *http.Request)  {
+	// 根据证书编号与姓名查询信息
+	certNo := r.FormValue("certNo")
+	name := r.FormValue("name")
+	result, err := app.Setup.FindEduByCertNoAndName(certNo, name)
+
+	var edu = service.Education{}
+	json.Unmarshal(result, &edu)
+
+	data := &struct {
+		Edu service.Education
+		CurrentUser User
+		Msg string
+		Flag bool
+	}{
+		Edu:edu,
+		CurrentUser:cuser,
+		Flag:true,
+		Msg:"",
+	}
+
+	if err != nil {
+		data.Msg = err.Error()
+		data.Flag = true
+	}
+
+	ShowView(w, r, "modify.html", data)
+}
+
+// 修改/添加新信息
+func (app *Application) Modify(w http.ResponseWriter, r *http.Request) {
+	edu := service.Education{
+		Name:r.FormValue("name"),
+		Gender:r.FormValue("gender"),
+		Nation:r.FormValue("nation"),
+		EntityID:r.FormValue("entityID"),
+		Place:r.FormValue("place"),
+		BirthDay:r.FormValue("birthDay"),
+		EnrollDate:r.FormValue("enrollDate"),
+		GraduationDate:r.FormValue("graduationDate"),
+		SchoolName:r.FormValue("schoolName"),
+		Major:r.FormValue("major"),
+		QuaType:r.FormValue("quaType"),
+		Length:r.FormValue("length"),
+		Mode:r.FormValue("mode"),
+		Level:r.FormValue("level"),
+		Graduation:r.FormValue("graduation"),
+		CertNo:r.FormValue("certNo"),
+		Photo:r.FormValue("photo"),
+	}
+
+	app.Setup.ModifyEdu(edu)
+
+	r.Form.Set("entityID", edu.EntityID)
+	app.FindByID(w, r)
+}
+```
+
+
+
+> 提示：用户在做一些管理操作时需要验证其它是否有相应的操作权限，需要另外进行设计。
+
+
+
+## 4.4 指定路由
+
+在 `web` 目录下创建一个 `webServer.go` 文件
 
 ```shell
 $ vim web/webServer.go
 ```
 
-编辑  `webServer.go` 文件，内容参见：
+该文件主要声明用户请求的路由信息，并且指定 Web 服务的启动信息。文件完整内容如下：
 
-- [web/webServer.go](https://github.com/kevin-hf/hfsdkgoweb/blob/master/webServer.go)
+```go
+/**
+  @Author : hanxiaodong
+*/
 
-### 8.6. 启动Web服务
+package web
+
+import (
+	"net/http"
+	"fmt"
+	"github.com/kongyixueyuan.com/education/web/controller"
+)
+
+
+// 启动Web服务并指定路由信息
+func WebStart(app controller.Application)  {
+
+	fs:= http.FileServer(http.Dir("web/static"))
+	http.Handle("/static/", http.StripPrefix("/static/", fs))
+
+	// 指定路由信息(匹配请求)
+	http.HandleFunc("/", app.LoginView)
+	http.HandleFunc("/login", app.Login)
+	http.HandleFunc("/loginout", app.LoginOut)
+
+	http.HandleFunc("/index", app.Index)
+	http.HandleFunc("/help", app.Help)
+
+	http.HandleFunc("/addEduInfo", app.AddEduShow)	// 显示添加信息页面
+	http.HandleFunc("/addEdu", app.AddEdu)	// 提交信息请求
+
+	http.HandleFunc("/queryPage", app.QueryPage)	// 转至根据证书编号与姓名查询信息页面
+	http.HandleFunc("/query", app.FindCertByNoAndName)	// 根据证书编号与姓名查询信息
+
+	http.HandleFunc("/queryPage2", app.QueryPage2)	// 转至根据身份证号码查询信息页面
+	http.HandleFunc("/query2", app.FindByID)	// 根据身份证号码查询信息
+
+
+	http.HandleFunc("/modifyPage", app.ModifyShow)	// 修改信息页面
+	http.HandleFunc("/modify", app.Modify)	//  修改信息
+
+	http.HandleFunc("/upload", app.UploadFile)
+
+	fmt.Println("启动Web服务, 监听端口号为: 9000")
+	err := http.ListenAndServe(":9000", nil)
+	if err != nil {
+		fmt.Printf("Web服务启动失败: %v", err)
+	}
+
+}
+```
+
+
+
+# 5 视图层实现
+
+## 5.1 目录结构
+
+在项目的web目录下新创建一个名为 `static`  的目录，用来存放Web应用视图层的所有静态内容
+
+```shell
+$ cd $GOPATH/src/github.com/kongyixueyuan.com/education
+$ mkdir web/static
+```
+
+**`web/static`目录下包括四个子目录，分别为：**
+
+- `web/static/css` ：用于存放控制页面布局及显示样式所需的 `CSS` 文件
+- `web/static/js` ：用于存放编写的与用户交互的 `JavaScript` 源代码文件
+- `web/static/images`：用户存放页面显示所需的所有图片文件
+- `web/static/photo`：用于存储添加信息时上传的图片文件
+
+```shell
+$ mkdir -p web/static/css
+$ mkdir -p web/static/images
+$ mkdir -p web/static/js
+$ mkdir -p web/static/photo
+```
+
+
+
+在项目的web目录下新创建一个名为 `tpl`  的目录，用来存放Web应用响应客户端的模板页面
+
+```shell
+$ mkdir web/tpl
+```
+
+在 `web/tpl` 目录下主要有如下页面：
+
+- `login.html`：用户登录页面
+- `index.html`：用户登录成功之后进入的首页面
+- `help.html`： 显示帮助信息及相关操作的链接页面
+- `query.html`：根据证书编号与姓名查询的页面
+- `query2.html`：根据身份证号码查询的页面
+- `queryResult.html`：根据不同的查询请求显示查询结果的页面
+- `addEdu.html`：添加信息的页面
+- `modify.html`：修改信息的页面
+
+
+
+## 5.2 相关源码实现
+
+相关源代码请参考：
+
+CSS 部分：
+
+[web/static/css/addEdu.css](https://github.com/kevin-hf/education/blob/master/web/static/css/addEdu.css)
+
+[web/static/css/bootstrap.min.css](https://github.com/kevin-hf/education/blob/master/web/static/css/bootstrap.min.css)
+
+[web/static/css/help.css](https://github.com/kevin-hf/education/blob/master/web/static/css/help.css)
+
+[web/static/css/index.css](https://github.com/kevin-hf/education/blob/master/web/static/css/index.css)
+
+[web/static/css/login.css](https://github.com/kevin-hf/education/blob/master/web/static/css/login.css)
+
+[web/static/css/query.css](https://github.com/kevin-hf/education/blob/master/web/static/css/query.css)
+
+[web/static/css/queryResult.css](https://github.com/kevin-hf/education/blob/master/web/static/css/queryResult.css)
+
+[web/static/css/reset.css](https://github.com/kevin-hf/education/blob/master/web/static/css/reset.css)
+
+JavaScript 部分
+
+[web/static/js/bootstrap.min.js](https://github.com/kevin-hf/education/blob/master/web/static/js/bootstrap.min.js)
+
+[web/static/js/jquery.min.js](https://github.com/kevin-hf/education/blob/master/web/static/js/jquery.min.js)
+
+HTML 页面模板部分：
+
+[web/tpl/addEdu.html](https://github.com/kevin-hf/education/blob/master/web/tpl/addEdu.html)
+
+[web/tpl/help.html](https://github.com/kevin-hf/education/blob/master/web/tpl/help.html)
+
+[web/tpl/index.html](https://github.com/kevin-hf/education/blob/master/web/tpl/index.html)
+
+[web/tpl/login.html](https://github.com/kevin-hf/education/blob/master/web/tpl/login.html)
+
+[web/tpl/modify.html](https://github.com/kevin-hf/education/blob/master/web/tpl/modify.html)
+
+[web/tpl/query.html](https://github.com/kevin-hf/education/blob/master/web/tpl/query.html)
+
+[web/tpl/query2.html](https://github.com/kevin-hf/education/blob/master/web/tpl/query2.html)
+
+[web/tpl/queryResult.html](https://github.com/kevin-hf/education/blob/master/web/tpl/queryResult.html)
+
+
+
+## 5.3 照片上传
+
+在添加信息时需要额外实现一个功能－添加照片
+
+使用jQuery Ajax功能实现
+
+HTML代码如下：
+
+```html
+            <div class="headImg">
+                <div class="uploadImg">
+                    <input type="file" name="" value="上传照片" id="file">
+                    +
+                    <!-- <img src="./images/head.jpg" alt=""> -->
+                    <img src="" alt="">
+                </div>
+                <p>请上传照片(120*160px)</p>
+            </div>
+          </div>
+```
+
+JavaScript代码如下:
+
+```javascript
+ 		// 上传图片
+        $('#file').unbind('change').bind('change',function() {
+            event.stopPropagation();
+            uploadFile('img');
+            return;
+        });
+        // 头像图片
+        var artImg;
+        function uploadFile(type) {
+            event.stopPropagation();
+            let formData = new FormData();
+            if( type == "img"){
+                formData.append('file', $('#file')[0].files[0]);
+            }
+            $.ajax({
+                url: '/upload',
+                type: 'POST',
+                cache: false,
+                data: formData,
+                processData: false,
+                dataType: "json",
+                contentType: false
+            }).done(function (res) {
+                if (res.error == "0") {
+                    if( type == "img"){
+                        $('.uploadImg img').attr('src',res.result.path);
+                        $('#photo').val(res.result.path)
+                        return artImg = res.result.path;
+                    }
+                } else {
+                    alert("上传失败！" + res.result.msg)
+                }
+            }).fail(function (res) { });
+        }
+```
+
+
+
+在 `web/controller` 目录下创建一个 `upload.go` 文件
+
+```shell
+$ vim web/controller/upload.go
+```
+
+`upload.go` 文件主要利用 Ajax完成 照片传功能的，完整代码如下：
+
+```go
+/**
+  @Author : hanxiaodong
+*/
+
+package controller
+
+import (
+	"fmt"
+	"net/http"
+	"io/ioutil"
+	"crypto/rand"
+	"path/filepath"
+	"os"
+	"mime"
+	"log"
+)
+
+func (app *Application) UploadFile(w http.ResponseWriter, r *http.Request)  {
+
+	start := "{"
+	content := ""
+	end := "}"
+
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		content = "\"error\":1,\"result\":{\"msg\":\"指定了无效的文件\",\"path\":\"\"}"
+		w.Write([]byte(start + content + end))
+		return
+	}
+	defer file.Close()
+
+	fileBytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		content = "\"error\":1,\"result\":{\"msg\":\"无法读取文件内容\",\"path\":\"\"}"
+		w.Write([]byte(start + content + end))
+		return
+	}
+
+	filetype := http.DetectContentType(fileBytes)
+	//log.Println("filetype = " + filetype)
+	switch filetype {
+	case "image/jpeg", "image/jpg":
+	case "image/gif", "image/png":
+	case "application/pdf":
+		break
+	default:
+		content = "\"error\":1,\"result\":{\"msg\":\"文件类型错误\",\"path\":\"\"}"
+		w.Write([]byte(start + content + end))
+		return
+	}
+
+	fileName := randToken(12)	// 指定文件名
+	fileEndings, err := mime.ExtensionsByType(filetype)	// 获取文件扩展名
+	//log.Println("fileEndings = " + fileEndings[0])
+	// 指定文件存储路径
+	newPath := filepath.Join("web", "static", "photo", fileName + fileEndings[0])
+	//fmt.Printf("FileType: %s, File: %s\n", filetype, newPath)
+
+	newFile, err := os.Create(newPath)
+	if err != nil {
+		log.Println("创建文件失败：" + err.Error())
+		content = "\"error\":1,\"result\":{\"msg\":\"创建文件失败\",\"path\":\"\"}"
+		w.Write([]byte(start + content + end))
+		return
+	}
+	defer newFile.Close()
+
+	if _, err := newFile.Write(fileBytes); err != nil || newFile.Close() != nil {
+		log.Println("写入文件失败：" + err.Error())
+		content = "\"error\":1,\"result\":{\"msg\":\"保存文件内容失败\",\"path\":\"\"}"
+		w.Write([]byte(start + content + end))
+		return
+	}
+
+	path := "/static/photo/" + fileName + fileEndings[0]
+	content = "\"error\":0,\"result\":{\"fileType\":\"image/png\",\"path\":\"" + path + "\",\"fileName\":\"ce73ac68d0d93de80d925b5a.png\"}"
+	w.Write([]byte(start + content + end))
+	return
+}
+
+func randToken(len int) string {
+	b := make([]byte, len)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)
+}
+```
+
+
+
+# 6 交互演示
+
+## 6.1 启动Web服务
 
 最后编辑   `main.go` ，以便启动Web界面实现Web应用程序
 
@@ -1757,56 +3044,75 @@ $ vim main.go
 ```go
 import(
 	[......]
-	"github.com/kongyixueyuan.com/kongyixueyuan/web"
-	"github.com/kongyixueyuan.com/kongyixueyuan/web/controller"
+	"github.com/kongyixueyuan.com/education/web/controller"
+	"github.com/kongyixueyuan.com/education/web"
 )
 
 func main(){}
 	[......]
 	
 	app := controller.Application{
-		Fabric: &serviceSetup,
+		Setup: &serviceSetup,
 	}
-	web.WebStart(&app)
+	web.WebStart(app)
 }
 ```
 
-执行 `make` 命令启动Web应用：
+应用项目开发完成后，可以直接启动用来查看效果。在命令提示符中输入 `make` 命令：
 
-![启动Web应用](./img/11.1_8.png)
+```shell
+$ make
+```
 
-### 8.7. 页面访问
+## 6.2 访问页面
 
-打开浏览器访问:   [htt://localhost:9000/](http://localhost:9000/)
+项目启动成功之后，打开浏览器访问:   [htt://localhost:9000/](http://localhost:9000/)
 
-因为我们这是一个简单的 Web 应用示例，所以页面不会要求达到多么美观的地步，只是能够实现相应的功能即可。根据访问的地址，首先进入 `index.html` 页面，该 `index.html` 页面提供了两个链接（也可以通过页面顶部的菜单中访问），用于实现在在分类账本中进行状态查询或对分类账本中的状态进行修改的操作（在此不实现添加状态的操作）。
+根据访问的URL地址系统自动响应登录页面
 
-![index](./img/index.png)
-
-因为我们在业务层中测试过一次，通过调用业务层向分类账中添加了一条状态， 所以现在分类帐中有一个 `key 为 Hanxiaodong `，`value 为 Kongyixueyuan ` 的键值对数据，可以点击 `查询信息` 的链接实现查询
-
-![queryReq](./img/queryReq.png)
-
-点击页面中的 `设置/修改` 链接后进入一个表单页面，该页面提供了一个更改状态的表单，表单中的 key 为固定值，用户需要输入对应的 Val，之后点击提交按钮发送请求。
-
-![setInfo](./img/setInfo.png)
-
-在 Val 输入框中输入一个值，如 `ChainDesk` 后点击提交按钮，表单被提交到服务器，服务器处理完毕将返回操作成功的交易ID并将其显示在页面中。
-
-![setResponse](./img/setResponse.png)
-
-我们可以通过点击页面中的 `查询信息` 链接来查看状态是否更改成功
-
-![query2](./img/query2.png)
-
-## 9. 参考资料
-
-- [Hyperledger 官网](https://www.hyperledger.org/)
-- [Hyperledger Fabric 在线文档](https://hyperledger-fabric.readthedocs.io/en/latest//)
-- [Hyperledger Fabric-SDK-Go](https://github.com/hyperledger/fabric-sdk-go)
-- [Fabric-SDK-Go tests](https://github.com/hyperledger/fabric-sdk-go/blob/master/test/integration/e2e/end_to_end.go)
-- [goweb 编程](https://golang.org/doc/articles/wiki/)
-- [web 前端](http://www.w3school.com.cn/)
+![login](./img/html_login.png)
 
 
+
+输入管理员账号及密码登录验证成功，则进入系统首页面
+
+![login](./img/html_index.png)
+
+在首页面中点击 `查询范围`链接，进入 `help`页面，
+
+![login](./img/html_help.png)
+
+点击添加学历信息链接进入，添加学历信息页面
+
+![login](./img/html_addEdu.png)
+
+
+
+根据学历证书编号与姓名查询页面
+
+![login](./img/html_queryResultbycert.png)
+
+根据学历证书编号与姓名查询结果页面
+
+![certNoAndName](./img/html_query.png)
+
+根据身份证号码查询页面
+
+![login](./img/html_query2.png)
+
+根据身份证号码查询页面查询结果页面
+
+![login](./img/html_queryResultbyentityid.png)
+
+编辑页面
+
+![login](./img/html_modify.png)
+
+编辑成功自动跳转到根据身份证号码查询结果页面
+
+![login](./img/html_modifyResult.png)
+
+
+
+项目完整源代码，请 [点击此处](https://github.com/kevin-hf/education)
 
